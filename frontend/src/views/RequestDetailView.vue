@@ -4,9 +4,12 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 import { ApiError } from '@/api/http'
-import { deleteRequest, getRequest } from '@/api/requests'
+import { deleteRequest, getHistory, getRequest, submitRequest } from '@/api/requests'
+import ApprovalActions from '@/components/ApprovalActions.vue'
+import ApprovalHistory from '@/components/ApprovalHistory.vue'
 import RequestStatusTag from '@/components/RequestStatusTag.vue'
 import { useAuthStore } from '@/stores/auth'
+import type { HistoryEntry } from '@/types/history'
 import type { RequestPublic } from '@/types/request'
 import { formatDateTime } from '@/utils/format'
 
@@ -17,7 +20,9 @@ const auth = useAuthStore()
 const requestId = computed(() => (typeof route.params.id === 'string' ? route.params.id : ''))
 
 const loading = ref(false)
+const submitting = ref(false)
 const detail = ref<RequestPublic | null>(null)
+const history = ref<HistoryEntry[]>([])
 
 const isOwnerDraft = computed(
   () =>
@@ -26,10 +31,19 @@ const isOwnerDraft = computed(
     detail.value.status === 'Draft',
 )
 
+async function loadHistory() {
+  try {
+    history.value = await getHistory(requestId.value)
+  } catch {
+    history.value = []
+  }
+}
+
 async function load() {
   loading.value = true
   try {
     detail.value = await getRequest(requestId.value)
+    await loadHistory()
   } catch (err) {
     ElMessage.error(err instanceof ApiError ? err.message : '加载失败，请稍后重试')
     if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
@@ -37,6 +51,34 @@ async function load() {
     }
   } finally {
     loading.value = false
+  }
+}
+
+async function handleSubmit() {
+  if (!detail.value) return
+  try {
+    await ElMessageBox.confirm('提交后将进入审批流程，确定提交吗？', '提交申请', {
+      confirmButtonText: '提交',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
+  submitting.value = true
+  try {
+    await submitRequest(detail.value.id)
+    ElMessage.success('提交成功')
+    load()
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 409) {
+      ElMessage.error('申请状态已发生变化，请刷新后重试')
+      load()
+    } else {
+      ElMessage.error(err instanceof ApiError ? err.message : '提交失败，请稍后重试')
+    }
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -88,15 +130,29 @@ onMounted(load)
       <div class="actions">
         <el-button @click="router.push({ name: 'requests' })">返回</el-button>
         <template v-if="isOwnerDraft">
+          <el-button type="primary" :loading="submitting" @click="handleSubmit">提交申请</el-button>
           <el-button
             type="primary"
+            plain
             @click="router.push({ name: 'request-edit', params: { id: detail.id } })"
           >
             编辑
           </el-button>
           <el-button type="danger" @click="handleDelete">删除</el-button>
         </template>
+        <ApprovalActions
+          :request="detail"
+          :current-user-id="auth.user?.id ?? ''"
+          @done="load"
+        />
       </div>
+    </el-card>
+
+    <el-card v-if="detail" class="history-card">
+      <template #header>
+        <div class="history-title">审批历史</div>
+      </template>
+      <ApprovalHistory :entries="history" />
     </el-card>
   </div>
 </template>
@@ -106,5 +162,7 @@ onMounted(load)
 .header { display: flex; align-items: center; gap: 12px; }
 .title { font-size: 18px; font-weight: 600; }
 .content { white-space: pre-wrap; }
-.actions { margin-top: 16px; display: flex; gap: 12px; }
+.actions { margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap; }
+.history-card { margin-top: 16px; }
+.history-title { font-size: 16px; font-weight: 600; }
 </style>

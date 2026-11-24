@@ -39,6 +39,11 @@ const router = createRouter({
           component: () => import('@/views/RequestFormView.vue'),
         },
         {
+          path: 'requests/pending',
+          name: 'request-pending',
+          component: () => import('@/views/PendingListView.vue'),
+        },
+        {
           path: 'requests/:id',
           name: 'request-detail',
           component: () => import('@/views/RequestDetailView.vue'),
