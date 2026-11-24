@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from backend!")
+"""Approval System application package."""

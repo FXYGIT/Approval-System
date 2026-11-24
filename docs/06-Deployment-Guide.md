@@ -69,7 +69,7 @@ MySQL 使用 healthcheck。迁移服务等待数据库健康。后端等待迁�
 ## 5. 开发模式
 
 开发 Compose 文件建议使用：
-- backend：挂载 `backend/app` 和迁移目录，运行 Uvicorn `--reload`。
+- backend：挂载 `backend/src/app` 和迁移目录，运行 Uvicorn `--reload`。
 - frontend：使用 Node 镜像，运行 Vite `--host 0.0.0.0`，挂载源码。
 - mysql：使用持久化 volume。
 
@@ -140,8 +140,8 @@ uv run alembic upgrade head
 本地排查可使用：
 
 ```bash
-docker compose exec backend uv run alembic current
-docker compose exec backend uv run alembic history
+docker compose exec backend alembic current
+docker compose exec backend alembic history
 ```
 
 迁移文件必须提交 Git。自动生成迁移后要人工检查外键、索引、CHECK 约束、默认值及字段类型。
@@ -171,3 +171,8 @@ docker compose exec backend uv run alembic history
 - [ ] 开发模式前后端代码热更新可用。
 - [ ] 验收模式使用构建镜像运行。
 - [ ] 新环境可按本指南复现启动。
+
+
+## 第一阶段实际运行说明（2026-11-24）
+
+以根目录 README 和 Compose 为实际命令依据。当前无需 JWT 环境变量；认证尚未实现。Compose 使用 MYSQL_* 分项配置，通过 URL.create 构造数据库 URL，不要求手写 DATABASE_URL。开发与验收均映射宿主机 5173 → 前端容器 8080；后端 8000。MySQL 8.4.7 不暴露宿主机端口。运行镜像只安装运行依赖，测试通过 README 中临时测试虚拟环境执行。

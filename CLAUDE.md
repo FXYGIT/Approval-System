@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目状态
 
-当前处于**需求与设计阶段**，代码仅有后端骨架（`backend/`），尚无业务实现。`docs/` 下的文档是权威来源，`README.md` 只作入口和运行说明。任何实施工作前应先读对应文档，而非凭默认假设编码。
+当前已完成**第一阶段工程骨架**：三个 ORM 模型、Alembic、FastAPI/Vue 入口及开发/验收 Compose；尚无审批业务实现。`docs/` 下的文档是权威来源，`README.md` 只作入口和运行说明。任何实施工作前应先读对应文档，而非凭默认假设编码。
 
 技术选型分三档，不能混用：
 - **已确定**：Vue 3 + TypeScript、Python 3.12 + FastAPI、uv、SQLAlchemy 2.x 同步 Session、MySQL、Alembic、Docker Compose（开发/验收均用）。
@@ -25,7 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 命令
 
-以下命令来自文档规划，**当前尚未实现可运行**（`pyproject.toml` 无依赖、`backend/src/app/__init__.py` 只有 `main()` 桩函数）。实现后即生效。
+命令以根目录 README 为准。Python 依赖及 uv.lock 已提供；FastAPI 入口为 backend/src/app/main.py。容器运行环境不安装测试依赖，测试命令见 README。
 
 Python 依赖与运行（在 `backend/` 目录下，用 uv）：
 
@@ -99,10 +99,12 @@ docker compose down -v           # 删除数据（先确认）
 - **历史排序**：`created_at ASC, id ASC` 稳定排序。删除草稿不产生历史。业务 API 只提供历史新增和查询。
 - **索引**：见 `docs/03` 第 6 节，需用 `EXPLAIN` 验证。
 - **迁移**：不得用 `Base.metadata.create_all()` 代替 Alembic；autogenerate 后人工检查外键、索引、CHECK 约束、默认值、时间精度。
-- **当前代码与文档的差异**：`pyproject.toml` 中包名为 `app`（src 布局，源码在 `backend/src/app/`），`[project.scripts] app = "app:main"` 指向 `__init__.py` 里的桩 `main()`；文档约定 FastAPI 入口为 `app/main.py`。实现时需对齐两者，替换桩代码。
+- **实际源码布局**：保留 backend/src/app，FastAPI 入口 app.main:app；不再保留桩 main()。
 
 ## Git 与交付约定
 
 - 提交格式 `<type>: <description>`（feat/fix/refactor/test/docs/chore/style），一个提交对应一个清晰变更，不最后一天一次性提交。
 - 不提交 `.env`、密钥、`.venv`、`node_modules`、构建产物；`.gitignore` 需覆盖前后端生成文件。
 - 不要自动 commit/push，除非明确要求；提交前展示变更摘要。
+
+第一阶段已采用 Vite、PyMySQL、MySQL 8.4.7，版本见镜像和锁文件；其余候选项留待业务实施阶段。

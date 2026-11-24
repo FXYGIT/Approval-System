@@ -4,3 +4,15 @@ bin
 obj
 
 .env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+*.egg-info/
+.idea/
+.vscode/
+.superpowers/
+docs/superpowers/

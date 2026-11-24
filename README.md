@@ -1,102 +1,82 @@
 # 简易审批流系统
 
-> 固定两级串行审批的前后端分离应用。项目处于初始设计阶段，本文档作为项目入口和运行说明。
+固定两级串行审批项目。目前已完成第一阶段工程骨架；注册登录、草稿及审批业务尚未实现。
 
-## 1. 项目简介
+## 快速启动
 
-系统支持员工创建申请、提交申请、由指定的一级和二级审批人依次处理，并查看申请状态及审批历史。
+需要 Docker Engine / Docker Desktop（Linux containers）和 Docker Compose v2。
 
-本期只实现固定两级串行审批，不实现通用工作流引擎。
-
-## 2. 技术栈
-
-| 模块 | 技术 | 决策状态 |
-|---|---|---|
-| 前端 | Vue 3 + TypeScript | 已确定 |
-| 前端构建 | Vite | 建议采用 |
-| 前端路由 | Vue Router | 建议采用 |
-| 状态管理 | Pinia | 建议采用 |
-| UI 组件 | Element Plus | 待确认 |
-| 后端 | Python 3.12 + FastAPI | 已确定 |
-| Python 依赖管理 | uv | 已确定 |
-| ORM | SQLAlchemy 2.x，同步 Session | 已确定 |
-| 数据库 | MySQL | 已确定 |
-| 数据库驱动 | PyMySQL | 建议采用 |
-| 数据库迁移 | Alembic | 已确定 |
-| 身份认证 | JWT Bearer | 需求要求 |
-| 密码哈希 | Argon2 | 建议采用 |
-| 容器 | Docker Compose | 已确定 |
-
-具体版本应通过依赖锁文件和镜像标签固定。MySQL 小版本、JWT 有效期、前端 UI 组件等仍应在开发前确认。
-
-## 3. 仓库结构
-
-```text
-approval-system/
-├── README.md
-├── backend/
-├── frontend/
-├── docs/
-│   ├── 01-Project-Spec.md
-│   ├── 02-System-Architecture.md
-│   ├── 03-Database-Design.md
-│   ├── 04-API-Design.md
-│   ├── 05-Development-Standards.md
-│   ├── 06-Deployment-Guide.md
-│   └── 07-Development-Log.md
-├── docker-compose.yml
-├── docker-compose.dev.yml
-├── .env.example
-└── .gitignore
+```powershell
+Copy-Item .env.example .env
+# 编辑 .env，设置两个不同的随机数据库密码；不要提交 .env。
+docker compose up --build -d --wait
 ```
 
-## 4. 文档导航
+- 前端：http://localhost:5173
+- Swagger：http://localhost:8000/docs
+- 健康检查：http://localhost:8000/api/health
+- 经前端代理的健康检查：http://localhost:5173/api/health
 
-| 文档 | 说明 |
-|---|---|
-| [需求与范围定义](docs/01-Project-Spec.md) | 需求来源、范围、角色、权限、流程及验收标准 |
-| [系统架构设计](docs/02-System-Architecture.md) | 技术架构、模块边界、事务及并发策略 |
-| [数据库设计](docs/03-Database-Design.md) | ER 图、表结构、约束、索引、ORM 和迁移 |
-| [API 接口设计](docs/04-API-Design.md) | 接口清单、请求响应约定及错误处理 |
-| [开发规范](docs/05-Development-Standards.md) | 代码组织、命名、Git、测试及 AI 辅助开发规范 |
-| [部署指南](docs/06-Deployment-Guide.md) | 环境变量、Docker Compose、启动和验收 |
-| [开发记录](docs/07-Development-Log.md) | 进度、决策变更、验证结果和遗留问题 |
+MySQL 健康后，一次性 migrate 自动执行 `alembic upgrade head`；成功后启动后端，再启动前端。`migrate Exited (0)` 是正常状态。三张业务表由 Alembic 创建，不使用 create_all。
 
-## 5. 本地运行
+## 开发模式
 
-项目约定开发和验收均使用 Docker Compose。实际启动命令以 `docs/06-Deployment-Guide.md` 和仓库中的 Compose 文件为准。
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build -d --wait
+```
 
-首次启动前：
+地址与验收模式相同。后端挂载 `backend/src` 和 migrations，Uvicorn 自动重载；前端挂载源码，使用 Vite。修改依赖后重新构建镜像。切回验收模式执行快速启动中的命令。
 
-1. 安装 Docker Engine / Docker Desktop 和 Docker Compose 插件。
-2. 复制 `.env.example` 为 `.env`。
-3. 为数据库密码和 JWT 密钥设置本地安全值。
-4. 按部署指南启动服务并执行 Alembic 迁移。
+## 配置和数据
 
-## 6. 服务入口（规划）
+`.env.example` 提供数据库名、用户、密码和宿主机端口。数据库不发布宿主机端口，容器通过 `mysql:3306` 连接。应用使用 URL.create 构造连接串，可处理密码特殊字符；dotenv 中含 `$` 的值应使用单引号包裹。后端独立运行也支持 `DATABASE_URL`，但 Compose 默认使用分项变量。
 
-| 服务 | 地址 |
-|---|---|
-| 前端 | http://localhost:5173（开发模式）或验收模式配置的端口 |
-| FastAPI | http://localhost:8000 |
-| Swagger UI | http://localhost:8000/docs |
-| OpenAPI JSON | http://localhost:8000/openapi.json |
+```powershell
+docker compose ps -a
+docker compose logs migrate
+docker compose exec backend alembic current
+docker compose exec backend alembic check
+docker compose down
+```
 
-以上地址为建议默认值，最终以 Compose 端口映射为准。
+`down` 保留 `mysql_data` 命名卷；`down -v` 会删除数据，仅在确认可丢弃时使用。已有 volume 的密码不会随 `.env` 修改自动更新。启动问题先查看对应服务日志。
 
-## 7. 测试
+## 技术与目录
 
-后端测试使用 pytest。测试命令、测试数据库配置及集成测试要求见 [开发规范](docs/05-Development-Standards.md) 和 [部署指南](docs/06-Deployment-Guide.md)。
+- Vue 3 + TypeScript + Vite，验收镜像使用非 root Nginx。
+- Python 3.12 + FastAPI + uv，SQLAlchemy 2.x 同步 Session + PyMySQL。
+- MySQL 8.4.7、Alembic；依赖版本固定于 uv.lock、package-lock.json。
+- `backend/src/app/models/`：User、Request、ApprovalHistory。
+- `backend/src/app/db/`：统一 Base、UTC 时间、Session 生命周期。
+- `backend/src/app/main.py`：仅 `/api/health`（实际查询数据库，异常返回 503）。
+- `backend/migrations/`：独立、可回退的初始迁移。
+- `backend/tests/`：真实 MySQL 约束与健康接口测试。
+- `frontend/src/`：最小 Vue 入口和统一健康检查请求模块。
 
-## 8. 项目状态
+本阶段不添加 JWT、Router、Pinia、UI 库等未使用依赖。数据库采用区分大小写的 utf8mb4_0900_as_cs，用户名唯一性也区分大小写；时间按 UTC 保存。
 
-当前为需求和技术设计阶段。文档中的“已确定”代表已确认的项目选型；“建议”或“待确认”内容必须在实施前评审，不应误认为已完成实现。
+## 验证
 
-## 9. 交付物
+先启动 Compose。测试使用随机 ID，数据库写入在测试事务结束时回滚。只在开发/测试数据库运行。
 
-- 前端源代码
-- 后端源代码
-- 数据库 Alembic 迁移
-- Docker Compose 配置
-- 自动化测试及测试结果
-- 本 README 及 `docs/` 下项目文档
+```powershell
+docker compose run --rm --no-deps -e UV_PROJECT_ENVIRONMENT=/tmp/test-venv -v ./backend/tests:/app/tests:ro backend uv run --frozen pytest -q -o cache_dir=/tmp/pytest-cache
+cd backend
+uv sync --frozen
+uv run ruff check .
+uv run ruff format --check .
+```
+
+前端类型检查和生产构建在 `docker compose build frontend` 中执行。迁移回退会删表，必须使用专用临时库验证，不能在有业务数据的库随意执行。
+
+实际验证结果见 [开发记录](docs/07-Development-Log.md)。本阶段通过不代表审批业务验收通过。
+
+## 项目文档
+
+- [需求与范围](docs/01-Project-Spec.md)
+- [系统架构](docs/02-System-Architecture.md)
+- [数据库设计](docs/03-Database-Design.md)
+- [API 设计](docs/04-API-Design.md)
+- [开发规范](docs/05-Development-Standards.md)
+- [部署指南](docs/06-Deployment-Guide.md)
+- [开发记录](docs/07-Development-Log.md)

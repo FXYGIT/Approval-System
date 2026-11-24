@@ -151,10 +151,10 @@ Action 允许值：
 所有模型继承统一 Declarative Base。字段类型、外键、索引和 CHECK 约束应与本文件保持一致。
 
 建议文件：
-- `backend/app/db/base.py`
-- `backend/app/models/user.py`
-- `backend/app/models/request.py`
-- `backend/app/models/approval_history.py`
+- `backend/src/app/db/base.py`
+- `backend/src/app/models/user.py`
+- `backend/src/app/models/request.py`
+- `backend/src/app/models/approval_history.py`
 
 ### 7.1 Base
 
@@ -237,8 +237,8 @@ Request 模型可以配置 `version_id_col`，用于普通 ORM 对象更新的�
 ```bash
 uv run alembic revision --autogenerate -m "create initial tables"
 uv run alembic upgrade head
-uv run alembic current
-uv run alembic history
+alembic current
+alembic history
 uv run alembic downgrade -1
 ```
 
@@ -264,3 +264,8 @@ uv run alembic downgrade -1
 - [ ] Alembic 可在空数据库执行 upgrade head。
 - [ ] 历史写入失败时业务事务回滚。
 - [ ] 并发审批最多一个请求成功。
+
+
+## 第一阶段实现补充（2026-11-24）
+
+实际 MySQL 镜像为 8.4.7，表使用 utf8mb4_0900_as_cs（大小写敏感，包括 username 唯一性）。初始迁移 0001_initial 明确拒绝 InProgress + NULL，并限制历史 action 允许值。UUID、created_at、updated_at 在应用层生成 UTC 值；version 同时有数据库 DEFAULT 1。回退按 approval_histories → requests → users 删表，索引随表删除，避免删除外键依赖索引失败。
