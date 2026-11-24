@@ -11,6 +11,9 @@ const route = useRoute()
 
 const displayName = computed(() => auth.user?.displayName || auth.user?.username || '')
 
+const isPendingActive = computed(() => route.path.startsWith('/requests/pending'))
+const isMineActive = computed(() => route.path.startsWith('/requests') && !isPendingActive.value)
+
 async function handleLogout() {
   try {
     await ElMessageBox.confirm('确定退出登录吗？', '提示', {
@@ -31,12 +34,11 @@ async function handleLogout() {
     <el-header class="header">
       <div class="brand" @click="router.push({ name: 'requests' })">审批系统</div>
       <nav class="nav">
-        <router-link
-          to="/requests"
-          class="link"
-          :class="{ active: route.path.startsWith('/requests') }"
-        >
+        <router-link to="/requests" class="link" :class="{ active: isMineActive }">
           我发起的申请
+        </router-link>
+        <router-link to="/requests/pending" class="link" :class="{ active: isPendingActive }">
+          待我审批
         </router-link>
       </nav>
       <div class="user">
@@ -60,7 +62,7 @@ async function handleLogout() {
   border-bottom: 1px solid #e4e7ed;
 }
 .brand { font-size: 18px; font-weight: 600; color: #2059a2; cursor: pointer; }
-.nav { flex: 1; }
+.nav { flex: 1; display: flex; gap: 24px; }
 .link { color: #606266; text-decoration: none; font-size: 15px; }
 .link:hover { color: #2059a2; }
 .link.active { color: #2059a2; font-weight: 600; }
