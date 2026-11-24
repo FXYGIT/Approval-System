@@ -21,6 +21,16 @@ class DraftUpdate(DraftInput):
     version: int = Field(ge=1, strict=True)
 
 
+class ApproveInput(InputModel):
+    comment: Annotated[str | None, StringConstraints(strip_whitespace=True, max_length=500)] = None
+    version: int | None = Field(default=None, ge=1, strict=True)
+
+
+class RejectInput(InputModel):
+    comment: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+    version: int | None = Field(default=None, ge=1, strict=True)
+
+
 class RequestPublic(APIModel):
     id: UUID
     title: str

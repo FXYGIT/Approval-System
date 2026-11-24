@@ -231,7 +231,7 @@ def test_mine_pagination_filters_and_user_directory(api, actors):
     ).json()
     assert result["total"] == 2 and len(result["items"]) == 1 and result["pageSize"] == 1
     assert client.get("/api/requests", headers=actors[1][1]).json()["total"] == 0
-    for params in ({"scope": "pending"}, {"page": 0}, {"pageSize": 101}, {"status": "invalid"}):
+    for params in ({"scope": "invalid"}, {"page": 0}, {"pageSize": 101}, {"status": "invalid"}):
         assert client.get("/api/requests", headers=actors[0][1], params=params).status_code == 422
     result = client.get(
         "/api/users", headers=actors[0][1], params={"keyword": actors[1][0]["username"]}
