@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目状态
 
-当前已完成**第四阶段前端认证与申请管理**：注册、登录、JWT、当前用户、用户候选列表、草稿 CRUD，申请提交、一级/二级通过与驳回、审批历史记录与查询、待审批列表，以及前端基础架构（Vue Router、Pinia、Axios 封装、JWT 持久化、统一异常处理）与申请管理页面（我的申请列表、创建、草稿编辑/删除、详情）。审批工作台与审批历史页面尚未实现。`docs/` 下的文档是权威来源，`README.md` 只作入口和运行说明。任何实施工作前应先读对应文档，而非凭默认假设编码。
+当前已完成**第五阶段前端审批工作台与审批历史**：注册、登录、JWT、当前用户、用户候选列表、草稿 CRUD，申请提交、一级/二级通过与驳回、审批历史记录与查询、待审批列表，以及前端完整闭环——基础架构（Vue Router、Pinia、Axios 封装、JWT 持久化、统一异常处理）、申请管理页面（我的申请列表、创建、草稿编辑/删除、详情）、待我审批列表、审批操作（通过/驳回，动态权限）、审批历史时间线与草稿提交。用户可完全通过浏览器完成「提交→一级审批→二级审批」或任一级驳回的完整流程。`docs/` 下的文档是权威来源，`README.md` 只作入口和运行说明。任何实施工作前应先读对应文档，而非凭默认假设编码。
 
 技术选型分三档，不能混用：
 - **已确定**：Vue 3 + TypeScript、Python 3.12 + FastAPI、uv、SQLAlchemy 2.x 同步 Session、MySQL、Alembic、Docker Compose（开发/验收均用）、Vite、Vue Router、Pinia、Axios、Element Plus、PyMySQL、Argon2id、HS256、MySQL 8.4.7。
