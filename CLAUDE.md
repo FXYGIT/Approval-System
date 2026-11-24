@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目状态
 
-当前已完成**第三阶段后端提交与两级审批**：注册、登录、JWT、当前用户、用户候选列表、草稿 CRUD，以及申请提交、一级/二级通过与驳回、审批历史记录与查询、待审批列表。前端认证/草稿/审批页面尚未实现。`docs/` 下的文档是权威来源，`README.md` 只作入口和运行说明。任何实施工作前应先读对应文档，而非凭默认假设编码。
+当前已完成**第四阶段前端认证与申请管理**：注册、登录、JWT、当前用户、用户候选列表、草稿 CRUD，申请提交、一级/二级通过与驳回、审批历史记录与查询、待审批列表，以及前端基础架构（Vue Router、Pinia、Axios 封装、JWT 持久化、统一异常处理）与申请管理页面（我的申请列表、创建、草稿编辑/删除、详情）。审批工作台与审批历史页面尚未实现。`docs/` 下的文档是权威来源，`README.md` 只作入口和运行说明。任何实施工作前应先读对应文档，而非凭默认假设编码。
 
 技术选型分三档，不能混用：
-- **已确定**：Vue 3 + TypeScript、Python 3.12 + FastAPI、uv、SQLAlchemy 2.x 同步 Session、MySQL、Alembic、Docker Compose（开发/验收均用）。
-- **建议（须实施前评审确认）**：Vite、Vue Router、Pinia、Axios、Element Plus、PyMySQL、Argon2、HS256、MySQL 8.4 LTS。
-- **待确认**：MySQL 小版本、JWT 有效期、Token 前端存储、UI 组件、错误响应格式、密码长度策略。
+- **已确定**：Vue 3 + TypeScript、Python 3.12 + FastAPI、uv、SQLAlchemy 2.x 同步 Session、MySQL、Alembic、Docker Compose（开发/验收均用）、Vite、Vue Router、Pinia、Axios、Element Plus、PyMySQL、Argon2id、HS256、MySQL 8.4.7。
+- **待确认**：无（原候选——JWT 有效期 60 分钟、Token 前端存 localStorage、错误格式 error.code/message、密码 8–128 字符均已确定，见 docs/04）。
+- 前端新增依赖版本由 package.json / package-lock.json 固定，遵循 README 的 `npm ci`。
 
 ## 文档导航（权威来源）
 
