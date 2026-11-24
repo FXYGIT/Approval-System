@@ -1,6 +1,6 @@
 # 04 — API 接口设计
 
-版本：V0.5（第三阶段）。本文件记录当前实现契约；前端认证、草稿及审批页面仍为后续计划。运行时完整 Schema 见 `/openapi.json`，交互文档见 `/docs`。
+版本：V1.0。本文件记录当前实现契约。运行时完整 Schema 见 `/openapi.json`，交互文档见 `/docs`。
 
 ## 通用契约
 
@@ -114,7 +114,3 @@ RequestPublic 包含：id、title、content、applicantId、firstApproverId、se
 | 503 | HTTP_503 | 数据库健康检查失败 |
 
 路由级 404、405 等使用 HTTP_<状态码>。错误响应不回显请求体、密码、Token、SQL 或堆栈。
-
-## 后续阶段（未实现）
-
-前端认证、草稿管理及审批页面尚未实现；提交与两级审批的后端契约已按本节开放，审批并发控制已通过 Version 乐观锁与条件 UPDATE 完成。
