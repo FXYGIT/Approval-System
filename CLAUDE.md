@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目状态
 
-当前已完成**第一阶段工程骨架**：三个 ORM 模型、Alembic、FastAPI/Vue 入口及开发/验收 Compose；尚无审批业务实现。`docs/` 下的文档是权威来源，`README.md` 只作入口和运行说明。任何实施工作前应先读对应文档，而非凭默认假设编码。
+当前已完成**第二阶段后端认证与申请草稿管理**：注册、登录、JWT、当前用户、用户候选列表、草稿 CRUD；尚无提交审批业务或前端认证/草稿页面。`docs/` 下的文档是权威来源，`README.md` 只作入口和运行说明。任何实施工作前应先读对应文档，而非凭默认假设编码。
 
 技术选型分三档，不能混用：
 - **已确定**：Vue 3 + TypeScript、Python 3.12 + FastAPI、uv、SQLAlchemy 2.x 同步 Session、MySQL、Alembic、Docker Compose（开发/验收均用）。
@@ -107,4 +107,4 @@ docker compose down -v           # 删除数据（先确认）
 - 不提交 `.env`、密钥、`.venv`、`node_modules`、构建产物；`.gitignore` 需覆盖前后端生成文件。
 - 不要自动 commit/push，除非明确要求；提交前展示变更摘要。
 
-第一阶段已采用 Vite、PyMySQL、MySQL 8.4.7，版本见镜像和锁文件；其余候选项留待业务实施阶段。
+当前已采用 Vite、PyMySQL、MySQL 8.4.7、Argon2id、HS256；JWT 默认 60 分钟，错误格式 error.code/message，密码 8–128 字符。具体契约见 docs/04，其他候选项留待对应阶段。

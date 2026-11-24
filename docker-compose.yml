@@ -7,6 +7,8 @@ x-backend: &backend
     MYSQL_DATABASE: ${MYSQL_DATABASE:-approval_db}
     MYSQL_USER: ${MYSQL_USER:-approval_user}
     MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+    JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
+    JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-60}
     TZ: UTC
 
 services:

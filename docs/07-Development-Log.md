@@ -92,3 +92,26 @@
 | Python 静态检查 | uv lock --check；ruff check；ruff format --check | 通过，16 文件格式合规 |
 
 限制：浏览器 HMR 交互未人工验收；已验证开发服务器挂载、源码响应和后端重载。首次 pytest 有第三方 TestClient/httpx 弃用提示及只读镜像缓存警告；README 的 cache_dir 参数避开缓存警告。未实现认证、审批、权限或并发业务测试。独立只读审查未发现其他阻塞缺陷。未执行 git commit/push。
+
+## 9. 第二阶段认证与申请草稿（2026-11-24）
+
+实现：注册、登录、JWT 身份认证、当前用户、分页用户候选列表、申请草稿创建/我的列表/详情/编辑/删除。API/Service/Repository 分层；Pydantic camelCase 输入输出；统一异常及错误 Schema。申请人只由 JWT 获取。输入禁止客户端传身份和流程字段。
+
+边界：不实现提交、审批、历史查询、pending 列表和前端业务页面。未新增 Migration，数据库仍为 0001_initial。没有执行 Git commit/push。
+
+| 验证项 | 环境 / 命令 | 实际结果 |
+|---|---|---|
+| 首轮失败测试 | Compose 测试容器，新增注册测试 | 原代码返回 404，确认接口尚不存在 |
+| 完整测试 | README pytest 命令；最终源码测试 | 82 passed，1 条第三方 Starlette/httpx 弃用提示 |
+| 安全覆盖 | JWT 过期、错误签名/算法/受众/签发者/类型、缺 exp、非法 sub、失效用户、未来 iat | 全部返回 401；弱/占位密钥启动失败 |
+| 输入及权限 | 伪造身份/状态、未知字段、空白/超长、错误版本、跨用户读取/编辑/删除、非草稿 | HTTP 状态及数据库最终内容均符合契约 |
+| 草稿一致性 | 编辑递增版本、相同内容编辑、旧版本更新、异常回滚、不生成历史 | 通过 |
+| 读取后竞争 | 两条独立 MySQL Session，读取后变更 version/status | 旧条件 UPDATE/DELETE 返回 0，胜出内容保留 |
+| 日志脱敏回归 | 先开启 TestClient 原异常传播复现，再增加 HTTP 中间件 | 原问题测试失败；修复后响应 500 且无原异常传播/敏感日志/堆栈 |
+| OpenAPI | 自动化检查所有业务路由 security、422 Schema、输入额外字段与输出脱敏 | 通过 |
+| 实际 HTTP 链路 | Nginx → FastAPI → MySQL：注册、登录、me、创建、列表、编辑、删除 | 全部通过；测试用户/草稿已清理 |
+| 容器运行 | docker compose up --build -d --wait | 三个服务 healthy，migrate Exited(0) |
+| 迁移一致性 | docker compose exec backend alembic check | No new upgrade operations detected |
+| 静态验证 | uv lock --check、ruff check、ruff format --check | 通过，39 个 Python 文件格式合规 |
+
+独立审查发现的日志异常传播问题已修复，读取后竞争测试已补齐；复核未发现遗留阻塞问题。测试数据以事务回滚为主，仅独立连接竞争和 HTTP 冒烟探针短暂提交并在 finally 中清理。

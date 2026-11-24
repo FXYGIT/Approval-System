@@ -184,3 +184,13 @@ Alembic 是数据库结构版本管理的唯一正式方式：
 ## 第一阶段实施决定（2026-11-24）
 
 工程初始化采用 Vite 7、PyMySQL、MySQL 8.4.7，具体依赖见锁文件。源码保留 backend/src/app 布局。前端只有连通状态页，后端只有 /api/health；认证和审批业务仍待实现。其余建议库和安全配置留待对应阶段决定。
+
+## 第二阶段实施决定（2026-11-24）
+
+- 后端认证使用 Argon2id（argon2-cffi）和 PyJWT；JWT 固定 HS256，不从请求或 JWT header 动态选择算法。密钥来自 JWT_SECRET_KEY，至少 32 字节且不可使用示例占位符，启动时检查。JWT_EXPIRE_MINUTES 默认 60，允许 1–1440。
+- Token 必须包含 sub/iat/exp/iss/aud/type，验证签名、时间、固定 issuer/audience、access 类型和 UUID 用户 ID，依赖查询用户存在。当前无 refresh/revoke/logout API；前端存储方式尚未实施。
+- API → Service → Repository → Session；认证依赖和路由共享单请求 Session，依赖只关闭，写入由 Service 提交/回滚。认证查询已隐式开启事务，Service transaction 上下文接管该事务，不嵌套 begin。
+- 草稿编辑使用 id/applicant_id/Draft/version 条件 UPDATE，成功后 version+1；删除使用读取版本及 Draft 条件 DELETE。这里只保护草稿基础生命周期，审批事务/历史/并发路径尚未实现。
+- 业务异常、HTTP 异常和 422 使用统一 error.code/message；验证错误不回显输入。最外层 HTTP 用户中间件捕获未预期异常，只记录异常类型，避免框架重新抛出异常导致 Uvicorn 打印 SQL 参数。完整堆栈未写入应用日志。
+- 无表结构变化；初始迁移仍为 head。模型、数据库约束保持第一阶段设计。
+- 安全实现参考：[PyJWT 验证文档](https://pyjwt.readthedocs.io/en/stable/api.html)、[Argon2 PasswordHasher](https://argon2-cffi.readthedocs.io/en/stable/api.html)。

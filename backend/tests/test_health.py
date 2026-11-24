@@ -19,6 +19,6 @@ def test_database_failure_is_sanitized():
     try:
         response = TestClient(app).get("/api/health")
         assert response.status_code == 503
-        assert response.json() == {"detail": "Database unavailable"}
+        assert response.json() == {"error": {"code": "HTTP_503", "message": "服务暂不可用"}}
     finally:
         app.dependency_overrides.clear()

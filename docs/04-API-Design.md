@@ -1,269 +1,100 @@
-# 04 — API 接口设计（API Design）
+# 04 — API 接口设计
 
-| 属性 | 内容 |
-|---|---|
-| 文档编号 | API-004 |
-| 版本 | V0.3 |
-| API 前缀 | `/api` |
-| 认证方式 | JWT Bearer |
+版本：V0.4（第二阶段）。本文件记录当前实现契约；审批接口仍为后续计划。运行时完整 Schema 见 `/openapi.json`，交互文档见 `/docs`。
 
-> 本文档是接口契约初稿。路由能力来自项目任务书；请求字段和响应结构为建议约定，实施前应结合 Pydantic Schema 和 OpenAPI 冻结。
+## 通用契约
 
-## 1. 通用约定
+- API 前缀 `/api`，JSON 字段采用 camelCase；成功响应直接返回对象或分页对象，不加 data 包装。
+- 注册、登录和健康检查公开；其余接口使用 `Authorization: Bearer <accessToken>`。
+- UUID 字符串作为 ID；时间按 UTC 保存，响应 ISO 8601，带 `Z`。
+- 输入模型禁止未知字段。applicantId、applicant_id、operatorId、status、currentStep 等身份或流程字段不可写入草稿请求体，传入返回 422。
+- 密码 8–128 字符，保留首尾空格；用户名 1–50、显示名 1–100，去除首尾空格后不能为空。用户名区分大小写。
+- JWT 固定 HS256，校验签名、exp、iat、UUID sub、issuer=approval-system、audience=approval-api、type=access，并查询用户仍然存在。默认有效期 60 分钟，可配置 1–1440 分钟；本阶段无刷新或撤销接口。
+- 密码使用 Argon2id，只保存哈希；响应不包含密码或密码哈希。
 
-- 使用 JSON 请求和响应。
-- 业务接口除注册、登录外均需 JWT Bearer。
-- 当前用户从 Token 解析，不接受客户端指定操作者身份。
-- 资源 ID 使用 UUID 字符串。
-- 时间使用 ISO 8601 格式。
-- 分页默认 page=1、pageSize=10，最大 pageSize=100。
+## 当前接口
 
-## 2. 接口清单
-
-### 2.1 认证与用户
-
-| Method | Path | 认证 | 说明 |
+| 方法 | 路径 | 成功状态 | 说明 |
 |---|---|---|---|
-| POST | `/api/auth/register` | 否 | 注册 |
-| POST | `/api/auth/login` | 否 | 登录并获取 JWT |
-| GET | `/api/users/me` | 是 | 当前用户信息 |
-| GET | `/api/users` | 是 | 用户简要列表，供选择审批人 |
+| POST | `/api/auth/register` | 201 | 注册，返回 UserPublic |
+| POST | `/api/auth/login` | 200 | 登录，返回 TokenResponse |
+| GET | `/api/users/me` | 200 | 当前用户，返回 UserPublic |
+| GET | `/api/users` | 200 | 用户候选列表，返回 Page<UserSummary> |
+| POST | `/api/requests` | 201 | 创建草稿，返回 RequestPublic |
+| GET | `/api/requests` | 200 | 我发起的申请，返回 Page<RequestPublic> |
+| GET | `/api/requests/{request_id}` | 200 | 申请详情 |
+| PUT | `/api/requests/{request_id}` | 200 | 编辑自己的草稿 |
+| DELETE | `/api/requests/{request_id}` | 204 | 删除自己的草稿，无响应体 |
+| GET | `/api/health` | 200 | API 与数据库健康检查 |
 
-### 2.2 申请管理
+### 注册与登录
 
-| Method | Path | 认证 | 说明 |
-|---|---|---|---|
-| POST | `/api/requests` | 是 | 创建草稿 |
-| GET | `/api/requests` | 是 | 分页查询 |
-| GET | `/api/requests/{id}` | 是 | 申请详情 |
-| PUT | `/api/requests/{id}` | 是 | 编辑草稿 |
-| DELETE | `/api/requests/{id}` | 是 | 删除草稿 |
+注册：`{"username":"alice","password":"example-password","displayName":"Alice"}`。
 
-### 2.3 审批
+登录：`{"username":"alice","password":"example-password"}`。
 
-| Method | Path | 认证 | 说明 |
-|---|---|---|---|
-| POST | `/api/requests/{id}/submit` | 是 | 提交申请 |
-| POST | `/api/requests/{id}/approve` | 是 | 当前节点通过 |
-| POST | `/api/requests/{id}/reject` | 是 | 当前节点驳回 |
-| GET | `/api/requests/{id}/history` | 是 | 审批历史 |
+UserSummary：id、username、displayName。UserPublic 额外包含 createdAt。
 
-## 3. 请求模型建议
+TokenResponse：`{"accessToken":"<jwt>","tokenType":"Bearer","expiresIn":3600}`。
 
-### 3.1 注册
+重复用户名返回 409；错误用户名与错误密码统一返回 401 INVALID_CREDENTIALS。Bearer 缺失、损坏、过期或用户不存在均返回 401，并携带 `WWW-Authenticate: Bearer`。
 
-`POST /api/auth/register`
-
-```json
-{
-  "username": "alice",
-  "password": "example-password",
-  "displayName": "Alice"
-}
-```
-
-用户名最长 50 字符，显示名称最长 100 字符。密码长度策略需在安全规范中确认。
-
-### 3.2 登录
-
-`POST /api/auth/login`
-
-```json
-{
-  "username": "alice",
-  "password": "example-password"
-}
-```
-
-成功响应建议：
-
-```json
-{
-  "accessToken": "<jwt>",
-  "tokenType": "Bearer",
-  "expiresIn": 3600
-}
-```
-
-具体 Token 字段名和过期时间应在实现前冻结。
-
-### 3.3 创建申请
-
-`POST /api/requests`
+### 草稿创建与编辑
 
 ```json
 {
   "title": "采购申请",
   "content": "申请采购办公用品",
-  "firstApproverId": "uuid-1",
-  "secondApproverId": "uuid-2"
+  "firstApproverId": "有效用户 UUID",
+  "secondApproverId": "有效用户 UUID"
 }
 ```
 
-申请人由当前 Token 确定。创建后状态为 Draft，version 初始为 1。
+标题 1–100 字符、内容 1–2000 字符，去除首尾空格后不能为空。两个审批人都必须存在且不能是申请人本人；两级审批人允许是同一用户。
 
-### 3.4 编辑草稿
+创建时 applicantId 只取 JWT 当前用户，status=Draft、currentStep=null、version=1、submittedAt=null。
 
-`PUT /api/requests/{id}`
+PUT 使用相同四个字段，额外必须携带正整数 version。只允许申请人编辑 Draft；过期版本返回 409 REQUEST_CONFLICT。成功编辑即使内容未变化也递增 version，并更新 updatedAt。
 
-```json
-{
-  "title": "修改后的标题",
-  "content": "修改后的内容",
-  "firstApproverId": "uuid-1",
-  "secondApproverId": "uuid-2",
-  "version": 1
-}
-```
+DELETE 只允许申请人删除 Draft；使用服务端读取的版本和 Draft 条件删除，读取后记录变化返回 409。创建、编辑、删除草稿都不生成审批历史。
 
-version 用于草稿编辑的乐观锁。只有申请人可编辑自己的 Draft。
+RequestPublic 包含：id、title、content、applicantId、firstApproverId、secondApproverId、applicant/firstApprover/secondApprover（UserSummary）、status、currentStep、version、createdAt、updatedAt、submittedAt。
 
-### 3.5 提交申请
+详情允许申请人或任一指定审批人查看，其他用户返回 403；不存在返回 404。审批人身份不赋予草稿编辑/删除权限。
 
-`POST /api/requests/{id}/submit`
+### 列表
 
-请求体可为空。后端根据数据库中的申请人、状态、审批人和版本进行验证。不得信任客户端传入 currentStep。
+`GET /api/requests?scope=mine&page=1&pageSize=10&status=Draft&keyword=采购`
 
-### 3.6 审批通过
+- scope 当前只接受 mine，pending 返回 422，待审批阶段再开放。
+- page 为 1–1000000，pageSize 为 1–100，默认分别 1、10。
+- status 可选 Draft/InProgress/Approved/Rejected；keyword 最长 100，按标题字面子串匹配，% 和 _ 不作为通配符。
+- 只返回当前用户发起的申请，按 createdAt DESC、id DESC 稳定排序。
+- 返回 `{"items":[],"total":0,"page":1,"pageSize":10}`。
 
-`POST /api/requests/{id}/approve`
+用户列表使用同样分页参数，keyword 最长 50，按 username 字面子串匹配，按 username、id 排序。仅登录用户可查询，返回 Page<UserSummary>。
 
-```json
-{
-  "comment": "同意",
-  "version": 2
-}
-```
+## 错误格式
 
-comment 可为空。version 可作为客户端观察到的版本提示；后端仍必须重新读取或条件更新数据库当前版本，不能仅依赖客户端值完成授权。
+统一响应：`{"error":{"code":"REQUEST_FORBIDDEN","message":"无权查看该申请"}}`。
 
-### 3.7 审批驳回
-
-`POST /api/requests/{id}/reject`
-
-```json
-{
-  "comment": "申请材料不完整",
-  "version": 2
-}
-```
-
-comment 必填，最长 500 字符。只允许当前节点指定审批人驳回。
-
-## 4. 列表查询
-
-`GET /api/requests`
-
-支持参数：
-
-| 参数 | 类型 | 说明 |
+| HTTP | code | 场景 |
 |---|---|---|
-| scope | string | mine 或 pending |
-| page | integer | 页码，默认 1 |
-| pageSize | integer | 每页数量，默认 10，最大 100 |
-| status | string | 可选状态筛选 |
-| keyword | string | 标题关键词 |
+| 400 | INVALID_APPROVER | 审批人不存在或是申请人自己 |
+| 401 | AUTHENTICATION_REQUIRED | 缺少有效 Bearer 认证头 |
+| 401 | INVALID_TOKEN | Token 无效/过期/用户不存在 |
+| 401 | INVALID_CREDENTIALS | 用户名或密码错误 |
+| 403 | REQUEST_FORBIDDEN | 无权读取或修改申请 |
+| 404 | REQUEST_NOT_FOUND | 申请不存在 |
+| 409 | USERNAME_ALREADY_EXISTS | 用户名已存在 |
+| 409 | INVALID_REQUEST_STATE | 修改/删除非草稿 |
+| 409 | REQUEST_CONFLICT | 版本过期或读取后数据变化 |
+| 422 | VALIDATION_ERROR | 请求参数校验失败 |
+| 500 | INTERNAL_ERROR | 未预期错误 |
+| 503 | HTTP_503 | 数据库健康检查失败 |
 
-mine 仅查询当前用户发起的申请。
+路由级 404、405 等使用 HTTP_<状态码>。错误响应不回显请求体、密码、Token、SQL 或堆栈。
 
-pending 仅查询当前用户在当前审批步骤需要处理的申请。
+## 后续阶段（未实现）
 
-响应建议：
-
-```json
-{
-  "items": [],
-  "total": 0,
-  "page": 1,
-  "pageSize": 10
-}
-```
-
-## 5. 详情与历史
-
-详情至少返回：
-- 申请单基本信息
-- 申请人
-- 一级审批人
-- 二级审批人
-- 当前状态
-- 当前步骤
-- 当前审批人（若处于审批中）
-- version
-- 创建、更新和提交时间
-
-历史按 `createdAt ASC, id ASC` 返回，至少包含操作类型、操作人、步骤、意见、前后状态 / 步骤和时间。
-
-申请详情和历史均需验证当前用户是否为申请人或指定审批人之一。
-
-## 6. 通用响应与错误
-
-响应结构建议统一，但具体字段需最终冻结。例如：
-
-```json
-{
-  "data": {},
-  "message": "success"
-}
-```
-
-错误响应建议：
-
-```json
-{
-  "error": {
-    "code": "APPROVAL_CONFLICT",
-    "message": "申请状态已发生变化，请刷新后重试"
-  }
-}
-```
-
-HTTP 状态码：
-- 200：成功
-- 201：创建成功
-- 400：业务参数错误
-- 401：未登录或认证失败
-- 403：无权限
-- 404：资源不存在
-- 409：状态冲突、重复审批或并发冲突
-- 422：FastAPI 参数校验错误（若统一映射为 400，必须全项目保持一致）
-- 500：未预期服务器错误
-
-不得向客户端返回堆栈、SQL、密码哈希或密钥。
-
-## 7. 业务错误码建议
-
-| 错误码 | 含义 |
-|---|---|
-| USERNAME_ALREADY_EXISTS | 用户名已存在 |
-| INVALID_CREDENTIALS | 用户名或密码错误 |
-| REQUEST_NOT_FOUND | 申请不存在 |
-| REQUEST_FORBIDDEN | 无权访问申请 |
-| INVALID_REQUEST_STATE | 当前申请状态不允许此操作 |
-| APPROVAL_NOT_ASSIGNED | 当前用户不是指定审批人 |
-| APPROVAL_CONFLICT | 申请已被其他请求处理 |
-| REJECTION_COMMENT_REQUIRED | 驳回意见必填 |
-| INVALID_APPROVER | 审批人不存在或不合法 |
-
-错误码为建议值，最终实现应与统一异常处理保持一致。
-
-## 8. OpenAPI
-
-FastAPI 自动生成：
-- Swagger UI：`/docs`
-- ReDoc：`/redoc`
-- OpenAPI JSON：`/openapi.json`
-
-所有接口应添加清晰的 summary、描述、请求模型、响应模型和可能的错误响应。
-
-## 9. API 验收
-
-- [ ] 注册和登录成功。
-- [ ] 未携带 Token 的业务请求返回 401。
-- [ ] 申请人由 Token 确定。
-- [ ] 申请详情和历史执行权限校验。
-- [ ] mine / pending 查询范围正确。
-- [ ] 分页返回 total。
-- [ ] 驳回意见必填。
-- [ ] 重复或过期审批返回 409。
-- [ ] OpenAPI 文档与实际接口一致。
+提交 `/api/requests/{id}/submit`、一级/二级通过 `/approve`、驳回 `/reject`、历史 `/history`、scope=pending 均未开放。其权限、状态机及历史要求仍以需求文档为准。本阶段的草稿条件写入不代表审批并发控制已完成。
