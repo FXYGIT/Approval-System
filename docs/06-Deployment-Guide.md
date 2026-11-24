@@ -176,3 +176,11 @@ docker compose exec backend alembic history
 ## 第一阶段实际运行说明（2026-11-24）
 
 以根目录 README 和 Compose 为实际命令依据。当前无需 JWT 环境变量；认证尚未实现。Compose 使用 MYSQL_* 分项配置，通过 URL.create 构造数据库 URL，不要求手写 DATABASE_URL。开发与验收均映射宿主机 5173 → 前端容器 8080；后端 8000。MySQL 8.4.7 不暴露宿主机端口。运行镜像只安装运行依赖，测试通过 README 中临时测试虚拟环境执行。
+
+## 第二阶段配置更新（2026-11-24）
+
+现在必须配置 JWT_SECRET_KEY（至少 32 字节随机密钥，不能使用 `.env.example` 占位内容），JWT_EXPIRE_MINUTES 默认 60。算法固定 HS256；不提供动态 JWT_ALGORITHM 开关。已有第一阶段 .env 应补齐这些值后执行 `docker compose up --build -d --wait`。未提供密钥时 Compose 拒绝运行，占位或短密钥会导致 API 启动失败。
+
+JWT 密钥可用 PowerShell 生成并保存至 `.env`，例如 `[Convert]::ToHexString([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))`。不要把实际值提交或放进镜像。
+
+当前测试命令见 README；新增测试依赖仍只在临时测试虚拟环境安装。第二阶段不更改数据库结构，`alembic check` 应无差异。当前 HTTP 503 同样采用 error.code/message 格式。

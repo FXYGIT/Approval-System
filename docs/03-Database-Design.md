@@ -19,51 +19,7 @@
 
 ## 2. ER 图
 
-```mermaid
-erDiagram
-    USERS ||--o{ REQUESTS : applicant
-    USERS ||--o{ REQUESTS : first_approver
-    USERS ||--o{ REQUESTS : second_approver
-    USERS ||--o{ APPROVAL_HISTORIES : operator
-    REQUESTS ||--o{ APPROVAL_HISTORIES : contains
-
-    USERS {
-        CHAR_36 id PK
-        VARCHAR_50 username UK
-        VARCHAR_255 password_hash
-        VARCHAR_100 display_name
-        DATETIME created_at
-    }
-
-    REQUESTS {
-        CHAR_36 id PK
-        VARCHAR_100 title
-        VARCHAR_2000 content
-        VARCHAR_20 status
-        CHAR_36 applicant_id FK
-        CHAR_36 first_approver_id FK
-        CHAR_36 second_approver_id FK
-        VARCHAR_20 current_step
-        INT version
-        DATETIME created_at
-        DATETIME updated_at
-        DATETIME submitted_at
-    }
-
-    APPROVAL_HISTORIES {
-        CHAR_36 id PK
-        CHAR_36 request_id FK
-        VARCHAR_30 action
-        CHAR_36 operator_id FK
-        VARCHAR_20 step
-        VARCHAR_500 comment
-        VARCHAR_20 previous_status
-        VARCHAR_20 previous_step
-        VARCHAR_20 new_status
-        VARCHAR_20 new_step
-        DATETIME created_at
-    }
-```
+![ER图](./figures/ER.png)
 
 ## 3. users 表
 
