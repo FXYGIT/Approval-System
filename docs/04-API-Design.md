@@ -1,6 +1,6 @@
 # 04 — API 接口设计
 
-版本：V0.4（第二阶段）。本文件记录当前实现契约；审批接口仍为后续计划。运行时完整 Schema 见 `/openapi.json`，交互文档见 `/docs`。
+版本：V0.5（第三阶段）。本文件记录当前实现契约；前端认证、草稿及审批页面仍为后续计划。运行时完整 Schema 见 `/openapi.json`，交互文档见 `/docs`。
 
 ## 通用契约
 
@@ -25,6 +25,10 @@
 | GET | `/api/requests/{request_id}` | 200 | 申请详情 |
 | PUT | `/api/requests/{request_id}` | 200 | 编辑自己的草稿 |
 | DELETE | `/api/requests/{request_id}` | 204 | 删除自己的草稿，无响应体 |
+| POST | `/api/requests/{request_id}/submit` | 200 | 提交申请，返回 RequestPublic |
+| POST | `/api/requests/{request_id}/approve` | 200 | 当前节点审批通过，返回 RequestPublic |
+| POST | `/api/requests/{request_id}/reject` | 200 | 当前节点审批驳回，返回 RequestPublic |
+| GET | `/api/requests/{request_id}/history` | 200 | 审批历史，返回 list[HistoryEntry] |
 | GET | `/api/health` | 200 | API 与数据库健康检查 |
 
 ### 注册与登录
@@ -66,13 +70,27 @@ RequestPublic 包含：id、title、content、applicantId、firstApproverId、se
 
 `GET /api/requests?scope=mine&page=1&pageSize=10&status=Draft&keyword=采购`
 
-- scope 当前只接受 mine，pending 返回 422，待审批阶段再开放。
+- scope 可选 mine（我发起的，默认）或 pending（待我审批）。
 - page 为 1–1000000，pageSize 为 1–100，默认分别 1、10。
-- status 可选 Draft/InProgress/Approved/Rejected；keyword 最长 100，按标题字面子串匹配，% 和 _ 不作为通配符。
-- 只返回当前用户发起的申请，按 createdAt DESC、id DESC 稳定排序。
+- status 仅对 scope=mine 生效，可选 Draft/InProgress/Approved/Rejected；keyword 最长 100，按标题字面子串匹配，% 和 _ 不作为通配符。
+- scope=mine 返回当前用户发起的申请；scope=pending 返回 status=InProgress 且当前节点审批人为当前用户的申请（First 匹配 firstApproverId，Second 匹配 secondApproverId）。均按 createdAt DESC、id DESC 稳定排序。
 - 返回 `{"items":[],"total":0,"page":1,"pageSize":10}`。
 
 用户列表使用同样分页参数，keyword 最长 50，按 username 字面子串匹配，按 username、id 排序。仅登录用户可查询，返回 Page<UserSummary>。
+
+### 提交与两级审批
+
+提交 `POST /api/requests/{id}/submit`：仅申请人可提交 Draft；Draft→InProgress/First，version 递增并写 submittedAt，同时新增一条 Submit 历史。非申请人返回 403；非 Draft 返回 409 INVALID_REQUEST_STATE；读取后版本变化返回 409 APPROVAL_CONFLICT。
+
+通过 `POST /api/requests/{id}/approve`，请求体 `{"comment":"同意","version":3}`：comment 可空、最长 500（去除首尾空格）；version 可选，为乐观锁前置条件。驳回 `POST /api/requests/{id}/reject`：comment 必填 1–500 字符（去除首尾空格），version 可选。
+
+状态机：一级通过 First→Second；二级通过 Second→Approved；任一节点驳回 →Rejected。不允许跳节点、重复审批或审批已结束申请。不实现驳回后重提、撤回、会签、转交、动态审批人。一级/二级审批人可为同一人，但须分别完成两步。
+
+权限：仅当前节点指定审批人可操作。非当前节点审批人返回 403 APPROVAL_NOT_ASSIGNED；申请已结束或为草稿返回 409 INVALID_REQUEST_STATE；版本过期或并发竞争返回 409 APPROVAL_CONFLICT。三者严格区分。
+
+一致性：状态更新与历史新增在同一事务提交；审批用条件 UPDATE（WHERE 至少含 id、读取时 version、status、current_step、当前节点审批人），仅当影响行数为 1 才写历史，否则回滚并返回 409。
+
+历史 `GET /api/requests/{id}/history`：仅申请人或任一指定审批人可读，其他用户 403；按 createdAt ASC、id ASC 稳定排序。HistoryEntry 含 id、action（Submit/FirstApprove/FirstReject/SecondApprove/SecondReject）、operator（UserSummary）、step、comment、previousStatus、previousStep、newStatus、newStep、createdAt。提交、通过、驳回各产生一条历史；删除草稿不产生历史。
 
 ## 错误格式
 
@@ -84,11 +102,13 @@ RequestPublic 包含：id、title、content、applicantId、firstApproverId、se
 | 401 | AUTHENTICATION_REQUIRED | 缺少有效 Bearer 认证头 |
 | 401 | INVALID_TOKEN | Token 无效/过期/用户不存在 |
 | 401 | INVALID_CREDENTIALS | 用户名或密码错误 |
-| 403 | REQUEST_FORBIDDEN | 无权读取或修改申请 |
+| 403 | REQUEST_FORBIDDEN | 无权读取、修改申请或查看历史 |
+| 403 | APPROVAL_NOT_ASSIGNED | 非当前节点的审批人操作 |
 | 404 | REQUEST_NOT_FOUND | 申请不存在 |
 | 409 | USERNAME_ALREADY_EXISTS | 用户名已存在 |
-| 409 | INVALID_REQUEST_STATE | 修改/删除非草稿 |
-| 409 | REQUEST_CONFLICT | 版本过期或读取后数据变化 |
+| 409 | INVALID_REQUEST_STATE | 修改/删除/提交/审批非当前状态 |
+| 409 | REQUEST_CONFLICT | 草稿版本过期或读取后数据变化 |
+| 409 | APPROVAL_CONFLICT | 审批版本过期或并发竞争 |
 | 422 | VALIDATION_ERROR | 请求参数校验失败 |
 | 500 | INTERNAL_ERROR | 未预期错误 |
 | 503 | HTTP_503 | 数据库健康检查失败 |
@@ -97,4 +117,4 @@ RequestPublic 包含：id、title、content、applicantId、firstApproverId、se
 
 ## 后续阶段（未实现）
 
-提交 `/api/requests/{id}/submit`、一级/二级通过 `/approve`、驳回 `/reject`、历史 `/history`、scope=pending 均未开放。其权限、状态机及历史要求仍以需求文档为准。本阶段的草稿条件写入不代表审批并发控制已完成。
+前端认证、草稿管理及审批页面尚未实现；提交与两级审批的后端契约已按本节开放，审批并发控制已通过 Version 乐观锁与条件 UPDATE 完成。

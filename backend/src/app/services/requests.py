@@ -59,6 +59,13 @@ def list_mine(
     return Page[RequestPublic](items=rows, total=total, page=page, page_size=page_size)
 
 
+def list_pending(
+    session: Session, user_id: str, page: int, page_size: int, keyword: str
+) -> Page[RequestPublic]:
+    rows, total = requests.list_pending(session, user_id, page, page_size, keyword)
+    return Page[RequestPublic](items=rows, total=total, page=page, page_size=page_size)
+
+
 def edit(session: Session, user_id: str, request_id: str, data: DraftUpdate) -> RequestPublic:
     with transaction(session):
         row = get_request(session, request_id)

@@ -1,4 +1,4 @@
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.base import utc_now
@@ -71,3 +71,83 @@ def delete_draft(session: Session, row: Request) -> int:
         .execution_options(synchronize_session=False)
     )
     return result.rowcount
+
+
+def submit_draft(session: Session, row: Request, user_id: str) -> int:
+    now = utc_now()
+    result = session.execute(
+        update(Request)
+        .where(
+            Request.id == row.id,
+            Request.applicant_id == user_id,
+            Request.status == "Draft",
+            Request.current_step.is_(None),
+            Request.version == row.version,
+        )
+        .values(
+            status="InProgress",
+            current_step="First",
+            version=Request.version + 1,
+            submitted_at=now,
+            updated_at=now,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    return result.rowcount
+
+
+def advance_approval(
+    session: Session,
+    row: Request,
+    approver_id: str,
+    from_step: str,
+    to_status: str,
+    to_step: str | None,
+) -> int:
+    approver_col = Request.first_approver_id if from_step == "First" else Request.second_approver_id
+    result = session.execute(
+        update(Request)
+        .where(
+            Request.id == row.id,
+            Request.version == row.version,
+            Request.status == "InProgress",
+            Request.current_step == from_step,
+            approver_col == approver_id,
+        )
+        .values(
+            status=to_status,
+            current_step=to_step,
+            version=Request.version + 1,
+            updated_at=utc_now(),
+        )
+        .execution_options(synchronize_session=False)
+    )
+    return result.rowcount
+
+
+def list_pending(session: Session, user_id: str, page: int, page_size: int, keyword: str):
+    filters = [
+        or_(
+            and_(
+                Request.status == "InProgress",
+                Request.current_step == "First",
+                Request.first_approver_id == user_id,
+            ),
+            and_(
+                Request.status == "InProgress",
+                Request.current_step == "Second",
+                Request.second_approver_id == user_id,
+            ),
+        )
+    ]
+    if keyword:
+        filters.append(Request.title.contains(keyword, autoescape=True))
+    total = session.scalar(select(func.count()).select_from(Request).where(*filters))
+    rows = session.scalars(
+        query()
+        .where(*filters)
+        .order_by(Request.created_at.desc(), Request.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+    return rows, total

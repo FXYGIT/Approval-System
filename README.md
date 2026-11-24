@@ -1,6 +1,6 @@
 # 简易审批流系统
 
-固定两级串行审批项目。已完成工程骨架及第二阶段后端认证与申请草稿管理。提交、审批及相应前端业务页面尚未实现。
+固定两级串行审批项目。已完成工程骨架、后端认证与申请草稿管理，以及提交与两级审批业务。前端认证、草稿及审批页面尚未实现。
 
 ## 快速启动
 
@@ -51,7 +51,7 @@ docker compose down
 - `backend/src/app/main.py`：路由和异常处理装配；`api/deps.py` 提供统一 JWT 认证依赖。
 - `backend/migrations/`：独立、可回退的初始迁移。
 - `backend/src/app/api/`、`services/`、`repositories/`：认证、用户和草稿的路由、业务及数据访问层。`schemas/` 定义请求/响应契约。
-- `backend/tests/`：真实 MySQL 约束、认证、草稿生命周期、安全与竞争测试。
+- `backend/tests/`：真实 MySQL 约束、认证、草稿生命周期、审批流转、安全与竞争测试。
 - `frontend/src/`：最小 Vue 入口和统一健康检查请求模块。
 
 认证使用 PyJWT + Argon2id；前端仍为最小连通页，不包含登录和草稿操作界面。数据库采用区分大小写的 utf8mb4_0900_as_cs，用户名唯一性也区分大小写；时间按 UTC 保存。
@@ -70,7 +70,7 @@ uv run ruff format --check .
 
 前端类型检查和生产构建在 `docker compose build frontend` 中执行。迁移回退会删表，必须使用专用临时库验证，不能在有业务数据的库随意执行。
 
-实际验证结果见 [开发记录](docs/07-Development-Log.md)。当前 82 项测试通过；第三方 Starlette/httpx 有一条弃用提示，不影响结果。本阶段通过不代表审批业务验收通过。
+实际验证结果见 [开发记录](docs/07-Development-Log.md)。当前 103 项测试通过；第三方 Starlette/httpx 有一条弃用提示，不影响结果。后端审批业务已通过，前端页面尚未实现。
 
 ## 项目文档
 
@@ -82,9 +82,9 @@ uv run ruff format --check .
 - [部署指南](docs/06-Deployment-Guide.md)
 - [开发记录](docs/07-Development-Log.md)
 
-## 第二阶段接口使用
+## 接口使用
 
-在 Swagger 注册两个用户，用 `/api/auth/login` 获取 accessToken，点击 Authorize 填入令牌，再调用 `/api/users/me`、`/api/users` 和 `/api/requests`。创建草稿只传 title/content/firstApproverId/secondApproverId；编辑还需 version。客户端不能指定申请人或流程状态。
+在 Swagger 注册两个以上用户，用 `/api/auth/login` 获取 accessToken，点击 Authorize 填入令牌，再调用 `/api/users/me`、`/api/users` 和 `/api/requests`。创建草稿只传 title/content/firstApproverId/secondApproverId；编辑还需 version。申请人用 `/submit` 提交后，一级审批人用 `/approve` 或 `/reject`，二级审批人再操作一次，最终进入 Approved/Rejected；用 `/history` 查看流转，用 `scope=pending` 查看待审批。客户端不能指定申请人、操作人或流程状态。
 
 成功直接返回 DTO，JSON 使用 camelCase；错误统一为 error.code/message。完整请求、响应、权限和错误码见 [API 契约](docs/04-API-Design.md)。用户名区分大小写，密码 8–128 字符且保留首尾空格，JWT 默认有效期 60 分钟，无刷新/注销接口。
 

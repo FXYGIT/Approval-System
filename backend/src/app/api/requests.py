@@ -5,8 +5,16 @@ from fastapi import APIRouter, Query, Response
 
 from app.api.deps import CurrentUser, DBSession
 from app.schemas.common import ERROR_RESPONSES, Page
-from app.schemas.request import DraftInput, DraftUpdate, RequestPublic, Status
-from app.services import requests
+from app.schemas.history import HistoryEntry
+from app.schemas.request import (
+    ApproveInput,
+    DraftInput,
+    DraftUpdate,
+    RejectInput,
+    RequestPublic,
+    Status,
+)
+from app.services import approvals, requests
 
 router = APIRouter(prefix="/api/requests", tags=["requests"], responses=ERROR_RESPONSES)
 
@@ -16,16 +24,18 @@ def create(data: DraftInput, session: DBSession, user: CurrentUser):
     return requests.create(session, user.id, data)
 
 
-@router.get("", response_model=Page[RequestPublic], summary="查询我发起的申请")
-def list_mine(
+@router.get("", response_model=Page[RequestPublic], summary="查询申请列表")
+def list_requests(
     session: DBSession,
     user: CurrentUser,
-    scope: Literal["mine"] = "mine",
+    scope: Literal["mine", "pending"] = "mine",
     page: Annotated[int, Query(ge=1, le=1000000)] = 1,
     page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 10,
     status: Status | None = None,
     keyword: Annotated[str, Query(max_length=100)] = "",
 ):
+    if scope == "pending":
+        return requests.list_pending(session, user.id, page, page_size, keyword.strip())
     return requests.list_mine(session, user.id, page, page_size, status, keyword.strip())
 
 
@@ -43,3 +53,23 @@ def edit(request_id: UUID, data: DraftUpdate, session: DBSession, user: CurrentU
 def delete(request_id: UUID, session: DBSession, user: CurrentUser):
     requests.delete(session, user.id, str(request_id))
     return Response(status_code=204)
+
+
+@router.post("/{request_id}/submit", response_model=RequestPublic, summary="提交申请")
+def submit(request_id: UUID, session: DBSession, user: CurrentUser):
+    return approvals.submit(session, user.id, str(request_id))
+
+
+@router.post("/{request_id}/approve", response_model=RequestPublic, summary="当前节点审批通过")
+def approve(request_id: UUID, data: ApproveInput, session: DBSession, user: CurrentUser):
+    return approvals.approve(session, user.id, str(request_id), data)
+
+
+@router.post("/{request_id}/reject", response_model=RequestPublic, summary="当前节点审批驳回")
+def reject(request_id: UUID, data: RejectInput, session: DBSession, user: CurrentUser):
+    return approvals.reject(session, user.id, str(request_id), data)
+
+
+@router.get("/{request_id}/history", response_model=list[HistoryEntry], summary="查询审批历史")
+def history(request_id: UUID, session: DBSession, user: CurrentUser):
+    return approvals.history(session, user.id, str(request_id))

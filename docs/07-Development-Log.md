@@ -3,8 +3,8 @@
 | 属性 | 内容 |
 |---|---|
 | 文档编号 | LOG-007 |
-| 版本 | V0.1 |
-| 状态 | 初始记录 |
+| 版本 | V0.3 |
+| 状态 | 第三阶段完成 |
 
 ## 1. 使用说明
 
@@ -38,8 +38,8 @@
 |---|---|---|---|
 | Day 1 | 需求、技术设计、ER 图、API、工程骨架 | 第一阶段完成 | 见第 8 节实际验证记录 |
 | Day 2 | 注册登录、JWT、草稿功能 | 未开始 | |
-| Day 3 | 提交、两级审批、详情及待审批 | 未开始 | |
-| Day 4 | 驳回、历史、权限、事务、并发、测试 | 未开始 | |
+| Day 3 | 提交、两级审批、详情及待审批 | 第三阶段完成 | 见第 10 节 |
+| Day 4 | 驳回、历史、权限、事务、并发、测试 | 第三阶段完成 | 见第 10 节 |
 | Day 5 | 联调、修复、文档、验收和交付 | 未开始 | |
 
 ## 4. 技术问题与变更记录
@@ -115,3 +115,20 @@
 | 静态验证 | uv lock --check、ruff check、ruff format --check | 通过，39 个 Python 文件格式合规 |
 
 独立审查发现的日志异常传播问题已修复，读取后竞争测试已补齐；复核未发现遗留阻塞问题。测试数据以事务回滚为主，仅独立连接竞争和 HTTP 冒烟探针短暂提交并在 finally 中清理。
+
+## 10. 第三阶段提交与两级审批（2026-11-24）
+
+实现：申请提交、一级审批通过/驳回、二级审批通过/驳回、审批历史记录与查询，完成 Draft→InProgress→Approved/Rejected 全状态流转；新增 scope=pending 待审批列表。申请人只由 JWT 确定；仅当前节点指定审批人可操作。状态更新与历史写入同一事务；Version 乐观锁条件 UPDATE 防重复审批与并发冲突。
+
+边界：本阶段不实现前端页面，未新增 Migration（复用 0001_initial 的 requests 与 approval_histories 表）。无 Git commit/push。
+
+| 验证项 | 环境 / 命令 | 实际结果 |
+|---|---|---|
+| 提交与状态流转 | README pytest 命令 | 提交、一级通过、二级通过、一级驳回、二级驳回、历史写入均符合状态机 |
+| 权限区分 | 申请人/非当前节点审批人操作 | 403 APPROVAL_NOT_ASSIGNED；已结束或草稿 409 INVALID_REQUEST_STATE |
+| 历史一致性 | 通过/驳回后历史 action 与 operator | Submit/FirstApprove/…按 createdAt ASC、id ASC 排序 |
+| 事务回滚 | monkeypatch 历史写入抛异常 | 状态回滚到 InProgress/First，version 不变，无多余历史 |
+| 并发竞争 | 两条独立 MySQL Session 读同一版本后同时审批 | 仅一条 rowcount=1，另一条返回 0；version 只递增一次 |
+| 待审批列表 | scope=pending 过滤 | 仅当前节点审批人可见，跨节点与已结束申请不可见 |
+| 完整测试 | README pytest 命令 | 103 passed，1 条第三方 Starlette/httpx 弃用提示 |
+| 静态验证 | ruff check、ruff format --check | 通过，43 个 Python 文件格式合规 |
